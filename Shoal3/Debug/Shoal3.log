@@ -1,23 +1,6 @@
-﻿  Fish.cpp
-c:\users\posejdon256\documents\visual studio 2017\projects\shoal3\shoal3\fish.cpp(14): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
-c:\users\posejdon256\documents\visual studio 2017\projects\shoal3\shoal3\fish.cpp(15): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
-c:\users\posejdon256\documents\visual studio 2017\projects\shoal3\shoal3\fish.cpp(28): warning C4244: '+=': conversion from 'double' to 'float', possible loss of data
-c:\users\posejdon256\documents\visual studio 2017\projects\shoal3\shoal3\fish.cpp(29): warning C4244: '+=': conversion from 'double' to 'float', possible loss of data
-c:\users\posejdon256\documents\visual studio 2017\projects\shoal3\shoal3\fish.cpp(34): warning C4244: '+=': conversion from 'double' to 'float', possible loss of data
-c:\users\posejdon256\documents\visual studio 2017\projects\shoal3\shoal3\fish.cpp(35): warning C4244: '+=': conversion from 'double' to 'float', possible loss of data
-c:\users\posejdon256\documents\visual studio 2017\projects\shoal3\shoal3\fish.cpp(41): warning C4244: '+=': conversion from 'double' to 'float', possible loss of data
-c:\users\posejdon256\documents\visual studio 2017\projects\shoal3\shoal3\fish.cpp(42): warning C4244: '+=': conversion from 'double' to 'float', possible loss of data
-c:\users\posejdon256\documents\visual studio 2017\projects\shoal3\shoal3\fish.cpp(47): warning C4244: '+=': conversion from 'double' to 'float', possible loss of data
-c:\users\posejdon256\documents\visual studio 2017\projects\shoal3\shoal3\fish.cpp(48): warning C4244: '+=': conversion from 'double' to 'float', possible loss of data
-c:\users\posejdon256\documents\visual studio 2017\projects\shoal3\shoal3\fish.cpp(50): warning C4244: '+=': conversion from 'double' to 'float', possible loss of data
-c:\users\posejdon256\documents\visual studio 2017\projects\shoal3\shoal3\fish.cpp(51): warning C4244: '+=': conversion from 'double' to 'float', possible loss of data
-c:\users\posejdon256\documents\visual studio 2017\projects\shoal3\shoal3\fish.cpp(63): warning C4305: 'initializing': truncation from 'double' to 'float'
-c:\users\posejdon256\documents\visual studio 2017\projects\shoal3\shoal3\fish.cpp(64): warning C4305: 'initializing': truncation from 'double' to 'float'
-c:\users\posejdon256\documents\visual studio 2017\projects\shoal3\shoal3\fish.cpp(89): warning C4018: '<': signed/unsigned mismatch
-c:\users\posejdon256\documents\visual studio 2017\projects\shoal3\shoal3\fish.cpp(97): warning C4018: '<': signed/unsigned mismatch
-c:\users\posejdon256\documents\visual studio 2017\projects\shoal3\shoal3\fish.cpp(104): warning C4244: '+=': conversion from 'double' to 'float', possible loss of data
-c:\users\posejdon256\documents\visual studio 2017\projects\shoal3\shoal3\fish.cpp(105): warning C4244: '+=': conversion from 'double' to 'float', possible loss of data
-c:\users\posejdon256\documents\visual studio 2017\projects\shoal3\shoal3\fish.cpp(106): warning C4244: '+=': conversion from 'double' to 'float', possible loss of data
-c:\users\posejdon256\documents\visual studio 2017\projects\shoal3\shoal3\fish.cpp(107): warning C4244: '+=': conversion from 'double' to 'float', possible loss of data
-  Shoal3.vcxproj -> c:\users\posejdon256\documents\visual studio 2017\Projects\Shoal3\Debug\Shoal3.exe
-  Shoal3.vcxproj -> c:\users\posejdon256\documents\visual studio 2017\Projects\Shoal3\Debug\Shoal3.pdb (Partial PDB)
+﻿  main.cpp
+c:\users\posejdon256\documents\visual studio 2017\projects\shoal3\shoal3\main.cpp(17): warning C4305: 'argument': truncation from 'double' to 'GLfloat'
+c:\users\posejdon256\documents\visual studio 2017\projects\shoal3\shoal3\main.cpp(26): warning C4305: 'initializing': truncation from 'double' to 'float'
+c:\users\posejdon256\documents\visual studio 2017\projects\shoal3\shoal3\main.cpp(47): warning C4305: 'argument': truncation from 'double' to 'GLclampf'
+  Shoal3.vcxproj -> C:\Users\posejdon256\documents\visual studio 2017\Projects\Shoal3\Debug\Shoal3.exe
+  Shoal3.vcxproj -> C:\Users\posejdon256\documents\visual studio 2017\Projects\Shoal3\Debug\Shoal3.pdb (Partial PDB)

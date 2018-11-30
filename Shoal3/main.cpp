@@ -16,7 +16,6 @@ void renderTriangle() {
 
 	glColor3f(255.0 / 255.0, 204.0 / 255.0, 0.0 / 255.0);
 
-
 	glVertex3f(-0.75, 0.5, 0.0);
 	glVertex3f(1.0, 0.0, 0.0);
 	glVertex3f(1.0, 1.0, 0.0);
@@ -24,10 +23,10 @@ void renderTriangle() {
 }
 
 void renderShoal() {
-	float scale = 0.03;
+	float scale = 0.015;
 	int  numberOfFishesInRow = 10;
 	fish* fishes = getArrayOfFishes();
-	for (int i = 0; i < numberOfFishesInRow * numberOfFishesInRow; i++) {
+	for (int i = 0; i < 100; i++) {
 
 		glMatrixMode(GL_MODELVIEW);
 		glLoadIdentity();
@@ -40,20 +39,21 @@ void renderShoal() {
 		renderTriangle();
 		glEnd();
 	}
-	glFlush();
-}
+	//glFlush();
+}//
 
 void render()
-{	for (int i = 0; i < 1000; i++) {
+{	//while(true) {
 		glClearColor(64.0 / 255.0, 164.0 / 255.0, 223.0 / 225.0, 1.0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		const clock_t begin_time = clock();
-		while (clock() - begin_time < 10);
+		//const clock_t begin_time = clock();
+		//while (clock() - begin_time < 10);
 
 		updateShoal();
 		renderShoal();
 		glutSwapBuffers();
-	}
+		glutPostRedisplay();
+	//}
 }
 
 
@@ -71,6 +71,8 @@ int main(int argc, char* argv[]) {
 	// Bind the two functions (above) to respond when necessary
 	glutReshapeFunc(changeViewPort);
 	glutDisplayFunc(render);
+	glutMainLoop();
+	//glutMainLoop();
 
 	// Very important!  This initializes the entry points in the OpenGL driver so we can 
 	// call all the functions in the API.
@@ -81,6 +83,5 @@ int main(int argc, char* argv[]) {
 	}
 
 
-	glutMainLoop();
 	return 0;
 }

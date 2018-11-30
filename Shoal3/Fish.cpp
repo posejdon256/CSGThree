@@ -2,17 +2,18 @@
 fish arrayOfFishes[100];
 
 using namespace std;
+int len = 10;
 
 void defineFishes() {
-	int numberOfFishesInRow = 10;
+	int numberOfFishesInRow = len;
 	for (int i = 0; i < numberOfFishesInRow; i++) {
 		for (int j = 0; j < numberOfFishesInRow; j++) {
 			fish f;
 			f.id = i * numberOfFishesInRow + j;
 			f.dirX = - 1.0;
 			f.dirY = 0.0;
-			f.x = 0.9 + i * -0.2;
-			f.y = 0.9 + j * -0.2;
+			f.x = 0.9 + i * -0.1;
+			f.y = 0.9 + j * -0.1;
 
 			arrayOfFishes[i * numberOfFishesInRow + j] = f;
 		}
@@ -22,7 +23,7 @@ fish* getArrayOfFishes() {
 	return arrayOfFishes;
 }
 void updateShoal() {
-	for (int i = 0; i < 100; i++) {
+	for (int i = 0; i < len * len; i++) {
 		if (arrayOfFishes[i].x <= -0.9 && arrayOfFishes[i].dirX < 0) {
 			arrayOfFishes[i].dirX = -arrayOfFishes[i].dirX;
 			arrayOfFishes[i].x += arrayOfFishes[i].dirX * 0.01;
@@ -50,7 +51,6 @@ void updateShoal() {
 		arrayOfFishes[i].x += arrayOfFishes[i].dirX * 0.005;
 		arrayOfFishes[i].y += arrayOfFishes[i].dirY * 0.005;
 	}
-	int len = 10;
 	for (int i = 0; i < len; i++) {
 		for (int j = 0; j < len; j++) {
 			int place = i * len + j;
@@ -59,7 +59,6 @@ void updateShoal() {
 	}
 }
 void updateInNeighborhoud(int x, int y) {
-	int len = 10;
 	float nei = 0.2;
 	float neiClose = 0.1;
 	vector<fish> friends;
@@ -101,12 +100,16 @@ void updateInNeighborhoud(int x, int y) {
 	if (friends.size() == 0) {
 		return;
 	}
-	current.dirX += (dirXNew / (float)friends.size()) * 0.1;
-	current.dirY += (dirYNew / (float)friends.size()) *0.1;
-	current.dirX += (posNewX / (float)friends.size()) * 0.05;
-	current.dirY += (posNewY / (float)friends.size()) * 0.05;
-	current.dirX += (awayFromX / (float)friends.size()) * 5;
-	current.dirY += (awayFromY / (float)friends.size()) * 5;
+	if (toClose.size() == 0) {
+		current.dirX += (dirXNew / (float)friends.size()) * 0.1;
+		current.dirY += (dirYNew / (float)friends.size()) *0.1;
+		current.dirX += (posNewX / (float)friends.size()) * 0.05;
+		current.dirY += (posNewY / (float)friends.size()) * 0.05;
+	}
+	else {
+		current.dirX += (awayFromX / (float)friends.size()) * 5;
+		current.dirY += (awayFromY / (float)friends.size()) * 5;
+	}
 	float vecLen = sqrt(pow(current.dirX, 2) + pow(current.dirY, 2));
 	current.dirX = current.dirX / vecLen;
 	current.dirY = current.dirY / vecLen;
