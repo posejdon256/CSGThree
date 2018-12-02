@@ -6,7 +6,6 @@
 
 #include <string>
 #include <cstdio>
-#include <vector>
 #include <iterator>
 #include <iostream>
 #include <random>
@@ -28,18 +27,10 @@
 
 using namespace std;
 
-#define LEN 10
+#define LEN 20
 
-struct  fish
-{
-	int id;
-	float dirX;
-	float dirY;
-	float x;
-	float y;
-};
 
-fish arrayOfFishes[LEN * LEN];
+float arrayOfFishes[5 * LEN * LEN];
 
 using namespace std;
 
@@ -60,40 +51,49 @@ float getVectorLength(float x1, float y1, float x2, float y2) {
 void defineFishes() {
 	int numberOfFishesInRow = LEN;
 	for (int i = 0; i < numberOfFishesInRow; i++) {
-		for (int j = 0; j < numberOfFishesInRow; j++) {
-			fish f;
-			f.id = i * numberOfFishesInRow + j;
-			f.dirX = -1.0;
-			f.dirY = 0.0;
-			f.x = 0.9 + i * -0.1;
-			f.y = 0.9 + j * -0.1;
-
-			arrayOfFishes[i * numberOfFishesInRow + j] = f;
+		for (int j = 0; j < numberOfFishesInRow * 5; j += 5) {
+			arrayOfFishes[i * numberOfFishesInRow * 5 + j] = i * numberOfFishesInRow * 5 + j;
+			arrayOfFishes[i * numberOfFishesInRow * 5 + j + 1] = -1.0f;
+			arrayOfFishes[i * numberOfFishesInRow * 5 + j + 2] = 0.0f;
+			arrayOfFishes[i * numberOfFishesInRow * 5 + j + 3] = 0.9f + i * -0.1f;
+			arrayOfFishes[i * numberOfFishesInRow * 5 + j + 4] = 0.9f + j * -0.1f;
 		}
 	}
 }
-fish* getArrayOfFishes() {
+float* getArrayOfFishes() {
 	return arrayOfFishes;
 }
 
 void updateInNeighborhoud(int x, int y) {
 	float nei = 0.2;
 	float neiClose = 0.1;
-	vector<fish> friends;
-	vector<fish> toClose;
-	fish current = arrayOfFishes[x * LEN + y];
+	int friends[LEN * LEN];
+	int toClose[LEN * LEN];
+	int friendsInd = 0;
+	int toCloseInd = 0;
+	float currentId = arrayOfFishes[x * LEN * 5 + y];
+	float currentDirX = arrayOfFishes[x * LEN * 5 + y + 1];
+	float currentDirY = arrayOfFishes[x * LEN * 5 + y + 2];
+	float currentX = arrayOfFishes[x * LEN * 5 + y + 3];
+	float currentY = arrayOfFishes[x * LEN * 5 + y + 4];
+
 	for (int i = 0; i < LEN; i++) {
-		for (int j = 0; j < LEN; j++) {
-			fish sFish = arrayOfFishes[i * LEN + j];
-			if (getVectorLength(sFish.x, sFish.y, current.x, current.y) < nei
-				&& current.id != sFish.id
-				&& vectorMultiply(sFish.x - current.x, sFish.y - current.y, current.dirX, current.dirY) > 0) {
-				friends.push_back(sFish);
+		for (int j = 0; j < 5 * LEN; j += 5) {
+			float sFishId = arrayOfFishes[i * LEN * 5 + j];
+			float sFishDirX = arrayOfFishes[i * LEN * 5 + j + 1];
+			float sFishDirY = arrayOfFishes[i * LEN * 5 + j + 2];
+			float sFishX = arrayOfFishes[i * LEN * 5 + j + 3];
+			float sFishY = arrayOfFishes[i * LEN * 5 + j + 4];
+
+			if (getVectorLength(sFishX, sFishY, currentX, currentY) < nei
+				&& currentId != sFishId
+				&& vectorMultiply(sFishX - currentX, sFishY - currentY, currentDirX, currentDirY) > 0) {
+				friends[friendsInd++] = (i * LEN * 5 + j);
 			}
-			if (getVectorLength(sFish.x, sFish.y, current.x, current.y) < neiClose
-				&& current.id != sFish.id
-				&& vectorMultiply(sFish.x - current.x, sFish.y - current.y, current.dirX, current.dirY) > 0) {
-				toClose.push_back(sFish);
+			if (getVectorLength(sFishX, sFishY, currentX, currentY) < neiClose
+				&& currentId != sFishId
+				&& vectorMultiply(sFishX - currentX, sFishY - currentY, currentDirX, currentDirY) > 0) {
+				toClose[toCloseInd++] = (i * LEN * 5 + j);
 			}
 		}
 	}
@@ -103,73 +103,92 @@ void updateInNeighborhoud(int x, int y) {
 	float dirYNew = 0.0;
 	float awayFromX = 0.0;
 	float awayFromY = 0.0;
-	for (int i = 0; i < friends.size(); i++) {
-		dirXNew += friends[i].dirX;
-		dirYNew += friends[i].dirY;
+	for (int i = 0; i < friendsInd; i++) {
+		dirXNew += arrayOfFishes[friends[i] + 1];
+		dirYNew += arrayOfFishes[friends[i] + 2];
 
-		posNewX += friends[i].x;
-		posNewY += friends[i].y;
+		posNewX += arrayOfFishes[friends[i] + 3];
+		posNewY += arrayOfFishes[friends[i] + 4];
 
 	}
-	for (int i = 0; i < toClose.size(); i++) {
-		awayFromX += (current.x - toClose[i].x);
-		awayFromY += (current.y - toClose[i].y);
+	for (int i = 0; i < toCloseInd; i++) {
+		awayFromX += currentX - arrayOfFishes[friends[i] + 3];
+		awayFromY += currentY - arrayOfFishes[friends[i] + 4];
 	}
-	if (friends.size() == 0) {
+	if (friendsInd == 0) {
 		return;
 	}
-	if (toClose.size() == 0) {
-		current.dirX += (dirXNew / (float)friends.size()) * 0.1;
-		current.dirY += (dirYNew / (float)friends.size()) *0.1;
-		current.dirX += (posNewX / (float)friends.size()) * 0.05;
-		current.dirY += (posNewY / (float)friends.size()) * 0.05;
+	if (toCloseInd == 0) {
+		currentDirX += (dirXNew / (float)friendsInd) * 0.1;
+		currentDirY += (dirYNew / (float)friendsInd) * 0.1;
+		currentDirX += (posNewX / (float)friendsInd) * 0.05;
+		currentDirY += (posNewY / (float)friendsInd) * 0.05;
 	}
 	else {
-		current.dirX += (awayFromX / (float)friends.size()) * 5;
-		current.dirY += (awayFromY / (float)friends.size()) * 5;
+		currentDirX += (awayFromX / (float)friendsInd) * 5;
+		currentDirY += (awayFromY / (float)friendsInd) * 5;
 	}
-	float vecLen = sqrt(pow(current.dirX, 2) + pow(current.dirY, 2));
-	current.dirX = current.dirX / vecLen;
-	current.dirY = current.dirY / vecLen;
+	float vecLen = sqrt(pow(currentDirX, 2) + pow(currentDirY, 2));
+	currentDirX /= vecLen;
+	currentDirY /= vecLen;
 	/*if (toClose.size() != 0) {
 		current.x += current.dirX * 0.005;
 		current.y += current.dirY * 0.005;
 	}*/
-	arrayOfFishes[x * LEN + y] = current;
+	arrayOfFishes[x * LEN * 5 + y] = currentId;
+	arrayOfFishes[x * LEN * 5 + y + 1] = currentDirX;
+	arrayOfFishes[x * LEN * 5 + y + 2] = currentDirY;
+	arrayOfFishes[x * LEN * 5 + y + 3] = currentX;
+	arrayOfFishes[x * LEN * 5 + y + 4] = currentY;
+
 }
 
 void updateShoal() {
-	for (int i = 0; i < LEN * LEN; i++) {
-		if (arrayOfFishes[i].x <= -0.9 && arrayOfFishes[i].dirX < 0) {
-			arrayOfFishes[i].dirX = -arrayOfFishes[i].dirX;
-			arrayOfFishes[i].x += arrayOfFishes[i].dirX * 0.01;
-			arrayOfFishes[i].y += arrayOfFishes[i].dirY * 0.01;
-			//arrayOfFishes[i].dirY = 1.0;
+	for (int i = 0; i < LEN * LEN * 5; i += 5) {
+		float sFishId = arrayOfFishes[i];
+		float sFishDirX = arrayOfFishes[i + 1];
+		float sFishDirY = arrayOfFishes[i + 2];
+		float sFishX = arrayOfFishes[i + 3];
+		float sFishY = arrayOfFishes[i + 4];
+
+
+		if (sFishX <= -0.9 && sFishDirX < 0) {
+			sFishDirX = -sFishDirX;
+			sFishX += sFishDirX * 0.01;
+			sFishY += sFishDirY * 0.01;
+			//sFishdirY = 1.0;
 		}
-		if (arrayOfFishes[i].x >= 0.9 && arrayOfFishes[i].dirX > 0) {
-			arrayOfFishes[i].dirX = -arrayOfFishes[i].dirX;
-			arrayOfFishes[i].x += arrayOfFishes[i].dirX * 0.01;
-			arrayOfFishes[i].y += arrayOfFishes[i].dirY * 0.01;
-			//arrayOfFishes[i].dirY = -1.0;
+		if (sFishX >= 0.9 && sFishDirX > 0) {
+			sFishDirX = -sFishDirX;
+			sFishX += sFishDirX * 0.01;
+			sFishY += sFishDirY * 0.01;
+			//sFishdirY = -1.0;
 		}
-		if (arrayOfFishes[i].y <= -0.9 && arrayOfFishes[i].dirY < 0) {
-			//arrayOfFishes[i].dirX = -1.0;
-			arrayOfFishes[i].dirY = -arrayOfFishes[i].dirY;
-			arrayOfFishes[i].x += arrayOfFishes[i].dirX * 0.01;
-			arrayOfFishes[i].y += arrayOfFishes[i].dirY * 0.01;
+		if (sFishY <= -0.9 && sFishDirY < 0) {
+			//sFishdirX = -1.0;
+			sFishDirY = -sFishDirY;
+			sFishX += sFishDirX * 0.01;
+			sFishY += sFishDirY * 0.01;
 		}
-		if (arrayOfFishes[i].y >= 0.9 && arrayOfFishes[i].dirY > 0) {
-			//arrayOfFishes[i].dirX = 1.0;
-			arrayOfFishes[i].dirY = -arrayOfFishes[i].dirY;
-			arrayOfFishes[i].x += arrayOfFishes[i].dirX * 0.01;
-			arrayOfFishes[i].y += arrayOfFishes[i].dirY * 0.01;
+		if (sFishY >= 0.9 && sFishDirY > 0) {
+			//sFishdirX = 1.0;
+			sFishDirY = -sFishDirY;
+			sFishX += sFishDirX * 0.01;
+			sFishY += sFishDirY * 0.01;
 		}
-		arrayOfFishes[i].x += arrayOfFishes[i].dirX * 0.005;
-		arrayOfFishes[i].y += arrayOfFishes[i].dirY * 0.005;
+		sFishX += sFishDirX * 0.005;
+		sFishY += sFishDirY * 0.005;
+
+		arrayOfFishes[i] = sFishId;
+		arrayOfFishes[i + 1] = sFishDirX;
+		arrayOfFishes[i + 2] = sFishDirY;
+		arrayOfFishes[i + 3] = sFishX;
+		arrayOfFishes[i + 4] = sFishY;
+
 	}
 	for (int i = 0; i < LEN; i++) {
-		for (int j = 0; j < LEN; j++) {
-			int place = i * LEN + j;
+		for (int j = 0; j < 5 * LEN; j += 5) {
+			int place = i * LEN * 5 + j;
 			updateInNeighborhoud(i, j);
 		}
 	}
@@ -192,14 +211,14 @@ void renderTriangle() {
 
 void renderShoal() {
 	float scale = 0.015;
-	int  numberOfFishesInRow = 10;
-	fish* fishes = getArrayOfFishes();
-	for (int i = 0; i < 100; i++) {
+	int  numberOfFishesInRow = LEN;
+	float* fishes = getArrayOfFishes();
+	for (int i = 0; i < LEN * LEN * 5; i += 5) {
 
 		glMatrixMode(GL_MODELVIEW);
 		glLoadIdentity();
-		glTranslatef(fishes[i].x, fishes[i].y, 0.0);
-		float angle = getAngle(fishes[i].dirX, fishes[i].dirY, 1, 0);
+		glTranslatef(fishes[i + 3], fishes[i + 4], 0.0);
+		float angle = getAngle(fishes[i + 1], fishes[i + 2], 1, 0);
 		glRotatef(angle, 0, 0, 1);
 		glScalef(scale, scale, scale);
 
