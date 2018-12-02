@@ -27,7 +27,7 @@
 
 using namespace std;
 
-#define LEN 40
+#define LEN 60
 
 
 float arrayOfFishes[5 * LEN * LEN];
@@ -60,8 +60,8 @@ void defineFishes() {
 			arrayOfFishes[i * numberOfFishesInRow * 5 + j] = i * numberOfFishesInRow * 5 + j;
 			arrayOfFishes[i * numberOfFishesInRow * 5 + j + 1] = -1.0f;
 			arrayOfFishes[i * numberOfFishesInRow * 5 + j + 2] = 0.0f;
-			arrayOfFishes[i * numberOfFishesInRow * 5 + j + 3] = 0.9f + i * -0.1f;
-			arrayOfFishes[i * numberOfFishesInRow * 5 + j + 4] = 0.9f + j * -0.1f;
+			arrayOfFishes[i * numberOfFishesInRow * 5 + j + 3] = 0.0f + i * -0.001f;
+			arrayOfFishes[i * numberOfFishesInRow * 5 + j + 4] = 0.0f + j * -0.001f;
 		}
 	}
 }
@@ -149,26 +149,26 @@ void updateInNeighborhoud(int x, int y) {
 }
 
 __device__
-void updateInNeighborhoudGpu(float *d_arrayOfFishes, float *d_arrayOfFishesRead, int ind) {
+void updateInNeighborhoudGpu(float *d_arrayOfFishes, int ind) {
 	float nei = 0.2;
 	float neiClose = 0.1;
 	int friends[LEN * LEN];
 	int toClose[LEN * LEN];
 	int friendsInd = 0;
 	int toCloseInd = 0;
-	float currentId = d_arrayOfFishesRead[ind];
-	float currentDirX = d_arrayOfFishesRead[ind + 1];
-	float currentDirY = d_arrayOfFishesRead[ind + 2];
-	float currentX = d_arrayOfFishesRead[ind + 3];
-	float currentY = d_arrayOfFishesRead[ind + 4];
+	float currentId = d_arrayOfFishes[ind];
+	float currentDirX = d_arrayOfFishes[ind + 1];
+	float currentDirY = d_arrayOfFishes[ind + 2];
+	float currentX = d_arrayOfFishes[ind + 3];
+	float currentY = d_arrayOfFishes[ind + 4];
 
 	for (int i = 0; i < LEN; i++) {
 		for (int j = 0; j < 5 * LEN; j += 5) {
-			float sFishId = d_arrayOfFishesRead[i * LEN * 5 + j];
-			float sFishDirX = d_arrayOfFishesRead[i * LEN * 5 + j + 1];
-			float sFishDirY = d_arrayOfFishesRead[i * LEN * 5 + j + 2];
-			float sFishX = d_arrayOfFishesRead[i * LEN * 5 + j + 3];
-			float sFishY = d_arrayOfFishesRead[i * LEN * 5 + j + 4];
+			float sFishId = d_arrayOfFishes[i * LEN * 5 + j];
+			float sFishDirX = d_arrayOfFishes[i * LEN * 5 + j + 1];
+			float sFishDirY = d_arrayOfFishes[i * LEN * 5 + j + 2];
+			float sFishX = d_arrayOfFishes[i * LEN * 5 + j + 3];
+			float sFishY = d_arrayOfFishes[i * LEN * 5 + j + 4];
 
 			if (getVectorLength(sFishX, sFishY, currentX, currentY) < nei
 				&& currentId != sFishId
@@ -189,16 +189,16 @@ void updateInNeighborhoudGpu(float *d_arrayOfFishes, float *d_arrayOfFishesRead,
 	float awayFromX = 0.0;
 	float awayFromY = 0.0;
 	for (int i = 0; i < friendsInd; i++) {
-		dirXNew += d_arrayOfFishesRead[friends[i] + 1];
-		dirYNew += d_arrayOfFishesRead[friends[i] + 2];
+		dirXNew += d_arrayOfFishes[friends[i] + 1];
+		dirYNew += d_arrayOfFishes[friends[i] + 2];
 
-		posNewX += d_arrayOfFishesRead[friends[i] + 3];
-		posNewY += d_arrayOfFishesRead[friends[i] + 4];
+		posNewX += d_arrayOfFishes[friends[i] + 3];
+		posNewY += d_arrayOfFishes[friends[i] + 4];
 
 	}
 	for (int i = 0; i < toCloseInd; i++) {
-		awayFromX += currentX - d_arrayOfFishesRead[friends[i] + 3];
-		awayFromY += currentY - d_arrayOfFishesRead[friends[i] + 4];
+		awayFromX += currentX - d_arrayOfFishes[friends[i] + 3];
+		awayFromY += currentY - d_arrayOfFishes[friends[i] + 4];
 	}
 	if (friendsInd == 0) {
 		return;
@@ -229,14 +229,17 @@ void updateInNeighborhoudGpu(float *d_arrayOfFishes, float *d_arrayOfFishesRead,
 }
 
 __global__
-void updateShoalGpu(float *d_arrayOfFishes, float *d_arrayOfFishesRead ) {
+void updateShoalGpu(float *d_arrayOfFishes) {
 	const long numThreads = blockDim.x * gridDim.x;
 	const long threadID = blockIdx.x * blockDim.x + threadIdx.x;
 
-	for (int i = threadID; i < LEN * LEN * 5; i += numThreads + 5) 
-	{
-		updateInNeighborhoudGpu(d_arrayOfFishes, d_arrayOfFishesRead, i);
+//	for (int i = threadID; i < LEN * LEN * 5; i += numThreads + 5) 
+	//{
+	int i = threadID;
+	if (threadID < LEN * LEN) {
+		updateInNeighborhoudGpu(d_arrayOfFishes, i * 5);
 	}
+	//}
 }
 
 
@@ -369,17 +372,19 @@ void renderGpu()
 		arrayOfFishes[i + 4] = sFishY;
 
 	}
-	float *d_fishes, *d_fishes_read;
+	float *d_fishes;
 	cudaMalloc((void**)&d_fishes, 5 * LEN * LEN * sizeof(float));
-	cudaMalloc((void**)&d_fishes_read, 5 * LEN * LEN * sizeof(float));
 	cudaMemcpy(d_fishes, arrayOfFishes, LEN * LEN * 5 * sizeof(float), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_fishes_read, arrayOfFishes, LEN * LEN * 5 * sizeof(float), cudaMemcpyHostToDevice);
 	cudaDeviceSynchronize();
-	updateShoalGpu << <1024, 1024 >> > (d_fishes, d_fishes_read);
+	updateShoalGpu << <1024, 1024 >> > (d_fishes);
 	cudaDeviceSynchronize();
 	cudaMemcpy(arrayOfFishes, d_fishes, LEN * LEN * 5 * sizeof(float), cudaMemcpyDeviceToHost);
 	cudaFree(d_fishes);
-	cudaFree(d_fishes_read);
+}
+
+void renderCpu()
+{
+	updateShoal();
 }
 
 void render()
@@ -390,7 +395,7 @@ void render()
 	//while (clock() - begin_time < 10);
 	
 	renderGpu();
-	//updateShoal();
+	//renderCpu();
 	renderShoal();
 	glutSwapBuffers();
 	glutPostRedisplay();
