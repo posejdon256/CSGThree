@@ -28,6 +28,8 @@
 
 using namespace std;
 
+#define LEN 10
+
 struct  fish
 {
 	int id;
@@ -37,10 +39,9 @@ struct  fish
 	float y;
 };
 
-fish arrayOfFishes[100];
+fish arrayOfFishes[LEN * LEN];
 
 using namespace std;
-int len = 10;
 
 float getAngle(float x1, float y1, float x2, float y2) {
 	float value = x1 * x2 + y1 * y2;
@@ -57,7 +58,7 @@ float getVectorLength(float x1, float y1, float x2, float y2) {
 }
 
 void defineFishes() {
-	int numberOfFishesInRow = len;
+	int numberOfFishesInRow = LEN;
 	for (int i = 0; i < numberOfFishesInRow; i++) {
 		for (int j = 0; j < numberOfFishesInRow; j++) {
 			fish f;
@@ -80,10 +81,10 @@ void updateInNeighborhoud(int x, int y) {
 	float neiClose = 0.1;
 	vector<fish> friends;
 	vector<fish> toClose;
-	fish current = arrayOfFishes[x * len + y];
-	for (int i = 0; i < len; i++) {
-		for (int j = 0; j < len; j++) {
-			fish sFish = arrayOfFishes[i * len + j];
+	fish current = arrayOfFishes[x * LEN + y];
+	for (int i = 0; i < LEN; i++) {
+		for (int j = 0; j < LEN; j++) {
+			fish sFish = arrayOfFishes[i * LEN + j];
 			if (getVectorLength(sFish.x, sFish.y, current.x, current.y) < nei
 				&& current.id != sFish.id
 				&& vectorMultiply(sFish.x - current.x, sFish.y - current.y, current.dirX, current.dirY) > 0) {
@@ -134,11 +135,11 @@ void updateInNeighborhoud(int x, int y) {
 		current.x += current.dirX * 0.005;
 		current.y += current.dirY * 0.005;
 	}*/
-	arrayOfFishes[x * len + y] = current;
+	arrayOfFishes[x * LEN + y] = current;
 }
 
 void updateShoal() {
-	for (int i = 0; i < len * len; i++) {
+	for (int i = 0; i < LEN * LEN; i++) {
 		if (arrayOfFishes[i].x <= -0.9 && arrayOfFishes[i].dirX < 0) {
 			arrayOfFishes[i].dirX = -arrayOfFishes[i].dirX;
 			arrayOfFishes[i].x += arrayOfFishes[i].dirX * 0.01;
@@ -166,9 +167,9 @@ void updateShoal() {
 		arrayOfFishes[i].x += arrayOfFishes[i].dirX * 0.005;
 		arrayOfFishes[i].y += arrayOfFishes[i].dirY * 0.005;
 	}
-	for (int i = 0; i < len; i++) {
-		for (int j = 0; j < len; j++) {
-			int place = i * len + j;
+	for (int i = 0; i < LEN; i++) {
+		for (int j = 0; j < LEN; j++) {
+			int place = i * LEN + j;
 			updateInNeighborhoud(i, j);
 		}
 	}
