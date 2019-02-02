@@ -17,22 +17,46 @@
 #include <gl/glew.h>
 #include <gl/GL.h>
 #include <gl/freeglut.h>
+#include <utility>  
 
 #pragma comment(lib, "glew32.lib")
 #include <iostream>
 #include <ctime>
 #include <Windows.h>
 #include<device_launch_parameters.h>
-
-
-using namespace std;
-
-#define LEN 60
-
-
-float arrayOfFishes[5 * LEN * LEN];
+#include <algorithm>
 
 using namespace std;
+
+#define LEN 1000
+
+
+struct Sphere
+{
+	int r;
+	int positionX;
+	int positionY;
+};
+enum Operation
+{
+	Sum = 0,
+	Mul = 1,
+	Diff = 2,
+	None = 3
+};
+struct node {
+	Operation operation;
+	Sphere* sphere;
+	node* left = NULL;
+	node* right = NULL;
+	node* parent = NULL;
+};
+struct zLen {
+	bool isIn;
+	float pos;
+};
+node * root;
+unsigned char *data;
 
 __host__ __device__
 float getAngle(float x1, float y1, float x2, float y2) {
@@ -53,247 +77,28 @@ float getVectorLength(float x1, float y1, float x2, float y2) {
 	return sqrt(pow(x1 - x2, 2) + pow(y1 - y2, 2));
 }
 
-void defineFishes() {
-	int numberOfFishesInRow = LEN;
-	for (int i = 0; i < numberOfFishesInRow; i++) {
-		for (int j = 0; j < numberOfFishesInRow * 5; j += 5) {
-			arrayOfFishes[i * numberOfFishesInRow * 5 + j] = i * numberOfFishesInRow * 5 + j;
-			arrayOfFishes[i * numberOfFishesInRow * 5 + j + 1] = -1.0f;
-			arrayOfFishes[i * numberOfFishesInRow * 5 + j + 2] = 0.0f;
-			arrayOfFishes[i * numberOfFishesInRow * 5 + j + 3] = 0.0f + i * -0.001f;
-			arrayOfFishes[i * numberOfFishesInRow * 5 + j + 4] = 0.0f + j * -0.001f;
-		}
-	}
-}
-float* getArrayOfFishes() {
-	return arrayOfFishes;
-}
-__host__
-void updateInNeighborhoud(int x, int y) {
-	float nei = 0.2;
-	float neiClose = 0.1;
-	int friends[LEN * LEN];
-	int toClose[LEN * LEN];
-	int friendsInd = 0;
-	int toCloseInd = 0;
-	float currentId = arrayOfFishes[x * LEN * 5 + y];
-	float currentDirX = arrayOfFishes[x * LEN * 5 + y + 1];
-	float currentDirY = arrayOfFishes[x * LEN * 5 + y + 2];
-	float currentX = arrayOfFishes[x * LEN * 5 + y + 3];
-	float currentY = arrayOfFishes[x * LEN * 5 + y + 4];
-
-	for (int i = 0; i < LEN; i++) {
-		for (int j = 0; j < 5 * LEN; j += 5) {
-			float sFishId = arrayOfFishes[i * LEN * 5 + j];
-			float sFishDirX = arrayOfFishes[i * LEN * 5 + j + 1];
-			float sFishDirY = arrayOfFishes[i * LEN * 5 + j + 2];
-			float sFishX = arrayOfFishes[i * LEN * 5 + j + 3];
-			float sFishY = arrayOfFishes[i * LEN * 5 + j + 4];
-
-			if (getVectorLength(sFishX, sFishY, currentX, currentY) < nei
-				&& currentId != sFishId
-				&& vectorMultiply(sFishX - currentX, sFishY - currentY, currentDirX, currentDirY) > 0) {
-				friends[friendsInd++] = (i * LEN * 5 + j);
-			}
-			if (getVectorLength(sFishX, sFishY, currentX, currentY) < neiClose
-				&& currentId != sFishId
-				&& vectorMultiply(sFishX - currentX, sFishY - currentY, currentDirX, currentDirY) > 0) {
-				toClose[toCloseInd++] = (i * LEN * 5 + j);
-			}
-		}
-	}
-	float dirXNew = 0.0;
-	float posNewX = 0.0;
-	float posNewY = 0.0;
-	float dirYNew = 0.0;
-	float awayFromX = 0.0;
-	float awayFromY = 0.0;
-	for (int i = 0; i < friendsInd; i++) {
-		dirXNew += arrayOfFishes[friends[i] + 1];
-		dirYNew += arrayOfFishes[friends[i] + 2];
-
-		posNewX += arrayOfFishes[friends[i] + 3];
-		posNewY += arrayOfFishes[friends[i] + 4];
-
-	}
-	for (int i = 0; i < toCloseInd; i++) {
-		awayFromX += currentX - arrayOfFishes[friends[i] + 3];
-		awayFromY += currentY - arrayOfFishes[friends[i] + 4];
-	}
-	if (friendsInd == 0) {
-		return;
-	}
-	if (toCloseInd == 0) {
-		currentDirX += (dirXNew / (float)friendsInd) * 0.1;
-		currentDirY += (dirYNew / (float)friendsInd) * 0.1;
-		currentDirX += (posNewX / (float)friendsInd) * 0.05;
-		currentDirY += (posNewY / (float)friendsInd) * 0.05;
-	}
-	else {
-		currentDirX += (awayFromX / (float)friendsInd) * 5;
-		currentDirY += (awayFromY / (float)friendsInd) * 5;
-	}
-	float vecLen = sqrt(pow(currentDirX, 2) + pow(currentDirY, 2));
-	currentDirX /= vecLen;
-	currentDirY /= vecLen;
-	/*if (toClose.size() != 0) {
-		current.x += current.dirX * 0.005;
-		current.y += current.dirY * 0.005;
-	}*/
-	arrayOfFishes[x * LEN * 5 + y] = currentId;
-	arrayOfFishes[x * LEN * 5 + y + 1] = currentDirX;
-	arrayOfFishes[x * LEN * 5 + y + 2] = currentDirY;
-	arrayOfFishes[x * LEN * 5 + y + 3] = currentX;
-	arrayOfFishes[x * LEN * 5 + y + 4] = currentY;
-
-}
-
-__device__
-void updateInNeighborhoudGpu(float *d_arrayOfFishes, int ind) {
-	float nei = 0.2;
-	float neiClose = 0.1;
-	int friends[LEN * LEN];
-	int toClose[LEN * LEN];
-	int friendsInd = 0;
-	int toCloseInd = 0;
-	float currentId = d_arrayOfFishes[ind];
-	float currentDirX = d_arrayOfFishes[ind + 1];
-	float currentDirY = d_arrayOfFishes[ind + 2];
-	float currentX = d_arrayOfFishes[ind + 3];
-	float currentY = d_arrayOfFishes[ind + 4];
-
-	for (int i = 0; i < LEN; i++) {
-		for (int j = 0; j < 5 * LEN; j += 5) {
-			float sFishId = d_arrayOfFishes[i * LEN * 5 + j];
-			float sFishDirX = d_arrayOfFishes[i * LEN * 5 + j + 1];
-			float sFishDirY = d_arrayOfFishes[i * LEN * 5 + j + 2];
-			float sFishX = d_arrayOfFishes[i * LEN * 5 + j + 3];
-			float sFishY = d_arrayOfFishes[i * LEN * 5 + j + 4];
-
-			if (getVectorLength(sFishX, sFishY, currentX, currentY) < nei
-				&& currentId != sFishId
-				&& vectorMultiply(sFishX - currentX, sFishY - currentY, currentDirX, currentDirY) > 0) {
-				friends[friendsInd++] = (i * LEN * 5 + j);
-			}
-			if (getVectorLength(sFishX, sFishY, currentX, currentY) < neiClose
-				&& currentId != sFishId
-				&& vectorMultiply(sFishX - currentX, sFishY - currentY, currentDirX, currentDirY) > 0) {
-				toClose[toCloseInd++] = (i * LEN * 5 + j);
-			}
-		}
-	}
-	float dirXNew = 0.0;
-	float posNewX = 0.0;
-	float posNewY = 0.0;
-	float dirYNew = 0.0;
-	float awayFromX = 0.0;
-	float awayFromY = 0.0;
-	for (int i = 0; i < friendsInd; i++) {
-		dirXNew += d_arrayOfFishes[friends[i] + 1];
-		dirYNew += d_arrayOfFishes[friends[i] + 2];
-
-		posNewX += d_arrayOfFishes[friends[i] + 3];
-		posNewY += d_arrayOfFishes[friends[i] + 4];
-
-	}
-	for (int i = 0; i < toCloseInd; i++) {
-		awayFromX += currentX - d_arrayOfFishes[friends[i] + 3];
-		awayFromY += currentY - d_arrayOfFishes[friends[i] + 4];
-	}
-	if (friendsInd == 0) {
-		return;
-	}
-	if (toCloseInd == 0) {
-		currentDirX += (dirXNew / (float)friendsInd) * 0.1;
-		currentDirY += (dirYNew / (float)friendsInd) * 0.1;
-		currentDirX += (posNewX / (float)friendsInd) * 0.05;
-		currentDirY += (posNewY / (float)friendsInd) * 0.05;
-	}
-	else {
-		currentDirX += (awayFromX / (float)friendsInd) * 5;
-		currentDirY += (awayFromY / (float)friendsInd) * 5;
-	}
-	float vecLen = sqrt(pow(currentDirX, 2) + pow(currentDirY, 2));
-	currentDirX /= vecLen;
-	currentDirY /= vecLen;
-	/*if (toClose.size() != 0) {
-		current.x += current.dirX * 0.005;
-		current.y += current.dirY * 0.005;
-	}*/
-	d_arrayOfFishes[ind] = currentId;
-	d_arrayOfFishes[ind + 1] = currentDirX;
-	d_arrayOfFishes[ind + 2] = currentDirY;
-	d_arrayOfFishes[ind + 3] = currentX;
-	d_arrayOfFishes[ind + 4] = currentY;
-
-}
-
 __global__
 void updateShoalGpu(float *d_arrayOfFishes) {
 	const long numThreads = blockDim.x * gridDim.x;
 	const long threadID = blockIdx.x * blockDim.x + threadIdx.x;
-
-//	for (int i = threadID; i < LEN * LEN * 5; i += numThreads + 5) 
-	//{
 	int i = threadID;
-	if (threadID < LEN * LEN) {
-		updateInNeighborhoudGpu(d_arrayOfFishes, i * 5);
-	}
-	//}
 }
-
-
-void updateShoal() {
-	for (int i = 0; i < LEN * LEN * 5; i += 5) {
-		float sFishId = arrayOfFishes[i];
-		float sFishDirX = arrayOfFishes[i + 1];
-		float sFishDirY = arrayOfFishes[i + 2];
-		float sFishX = arrayOfFishes[i + 3];
-		float sFishY = arrayOfFishes[i + 4];
-
-
-		if (sFishX <= -0.9 && sFishDirX < 0) {
-			sFishDirX = -sFishDirX;
-			sFishX += sFishDirX * 0.01;
-			sFishY += sFishDirY * 0.01;
-			//sFishdirY = 1.0;
-		}
-		if (sFishX >= 0.9 && sFishDirX > 0) {
-			sFishDirX = -sFishDirX;
-			sFishX += sFishDirX * 0.01;
-			sFishY += sFishDirY * 0.01;
-			//sFishdirY = -1.0;
-		}
-		if (sFishY <= -0.9 && sFishDirY < 0) {
-			//sFishdirX = -1.0;
-			sFishDirY = -sFishDirY;
-			sFishX += sFishDirX * 0.01;
-			sFishY += sFishDirY * 0.01;
-		}
-		if (sFishY >= 0.9 && sFishDirY > 0) {
-			//sFishdirX = 1.0;
-			sFishDirY = -sFishDirY;
-			sFishX += sFishDirX * 0.01;
-			sFishY += sFishDirY * 0.01;
-		}
-		sFishX += sFishDirX * 0.005;
-		sFishY += sFishDirY * 0.005;
-
-		arrayOfFishes[i] = sFishId;
-		arrayOfFishes[i + 1] = sFishDirX;
-		arrayOfFishes[i + 2] = sFishDirY;
-		arrayOfFishes[i + 3] = sFishX;
-		arrayOfFishes[i + 4] = sFishY;
-
+vector<zLen*>* prepareZetsArray() {
+	vector<zLen*> *zlenth = new vector<zLen*>[LEN * LEN];
+	for (int i = 0; i < LEN * LEN; i++) {
+		zlenth = new vector<zLen*>();
 	}
-	for (int i = 0; i < LEN; i++) {
-		for (int j = 0; j < 5 * LEN; j += 5) {
-			int place = i * LEN * 5 + j;
-			updateInNeighborhoud(i, j);
-		}
-	}
+	return zlenth;
 }
+bool sortFunction(zLen* i, zLen* j) { return i->pos > j->pos; }
+unsigned char* prepareData() {
+	unsigned char *data = new unsigned char[LEN * LEN * 4];
+	for (int i = 0; i < LEN * LEN * 4; i++) {
+		data[i] = 0;
+	}
 
+	return data;
+}
 void changeViewPort(int w, int h)
 {
 	glViewport(0, 0, w, h);
@@ -310,119 +115,222 @@ void renderTriangle() {
 }
 
 void renderShoal() {
-	float scale = 0.015;
-	int  numberOfFishesInRow = LEN;
-	float* fishes = getArrayOfFishes();
-	for (int i = 0; i < LEN * LEN * 5; i += 5) {
-
-		glMatrixMode(GL_MODELVIEW);
-		glLoadIdentity();
-		glTranslatef(fishes[i + 3], fishes[i + 4], 0.0);
-		float angle = getAngle(fishes[i + 1], fishes[i + 2], 1, 0);
-		glRotatef(angle, 0, 0, 1);
-		glScalef(scale, scale, scale);
-
-		glBegin(GL_POLYGON);
-		renderTriangle();
-		glEnd();
-	}
-	//glFlush();
-}//
+}
 void renderGpu()
 {
-	for (int i = 0; i < LEN * LEN * 5; i += 5) {
-		float sFishId = arrayOfFishes[i];
-		float sFishDirX = arrayOfFishes[i + 1];
-		float sFishDirY = arrayOfFishes[i + 2];
-		float sFishX = arrayOfFishes[i + 3];
-		float sFishY = arrayOfFishes[i + 4];
-
-
-		if (sFishX <= -0.9 && sFishDirX < 0) {
-			sFishDirX = -sFishDirX;
-			sFishX += sFishDirX * 0.01;
-			sFishY += sFishDirY * 0.01;
-			//sFishdirY = 1.0;
-		}
-		if (sFishX >= 0.9 && sFishDirX > 0) {
-			sFishDirX = -sFishDirX;
-			sFishX += sFishDirX * 0.01;
-			sFishY += sFishDirY * 0.01;
-			//sFishdirY = -1.0;
-		}
-		if (sFishY <= -0.9 && sFishDirY < 0) {
-			//sFishdirX = -1.0;
-			sFishDirY = -sFishDirY;
-			sFishX += sFishDirX * 0.01;
-			sFishY += sFishDirY * 0.01;
-		}
-		if (sFishY >= 0.9 && sFishDirY > 0) {
-			//sFishdirX = 1.0;
-			sFishDirY = -sFishDirY;
-			sFishX += sFishDirX * 0.01;
-			sFishY += sFishDirY * 0.01;
-		}
-		sFishX += sFishDirX * 0.005;
-		sFishY += sFishDirY * 0.005;
-
-		arrayOfFishes[i] = sFishId;
-		arrayOfFishes[i + 1] = sFishDirX;
-		arrayOfFishes[i + 2] = sFishDirY;
-		arrayOfFishes[i + 3] = sFishX;
-		arrayOfFishes[i + 4] = sFishY;
-
+}
+float getZet(int x, int y, int cenX, int cenY, int r) {
+	return sqrt(pow(r, 2) - pow(x - cenX, 2) - pow(y - cenY, 2));
+}
+float zetDist(int x, int y, int cenX, int cenY, int r) {
+	return  max(((200.0f - getZet(x, y, cenX, cenY, r)) / 500.0f) * 255.0f, 0.0f);
+}
+float zetDistBack(int x, int y, int cenX, int cenY, int r) {
+	return  min(((200.0f + getZet(x, y, cenX, cenY, r)) / 500.0f) * 255.0f, 255.0f);
+}
+bool isInCircle(int x, int y, int cenX, int cenY, int r) {
+	float len = sqrt(pow(x - cenX, 2) + pow(y - cenY, 2));
+	return len <= r;
+}
+void setInd(unsigned char *data, int i, int j, int value) {
+	data[((i + 500) * LEN + (j + 500)) * 4] = value;
+	data[((i + 500) * LEN + (j + 500)) * 4 + 1] = value;
+	data[((i + 500) * LEN + (j + 500)) * 4 + 2] = value;
+	data[((i + 500) * LEN + (j + 500)) * 4 + 3] = value;
+}
+float getMinimumOfArray(vector<float> arr) {
+	if (arr.size() == 0) {
+		return 0;
 	}
-	float *d_fishes;
-	cudaMalloc((void**)&d_fishes, 5 * LEN * LEN * sizeof(float));
-	cudaMemcpy(d_fishes, arrayOfFishes, LEN * LEN * 5 * sizeof(float), cudaMemcpyHostToDevice);
-	cudaDeviceSynchronize();
-	updateShoalGpu << <1024, 1024 >> > (d_fishes);
-	cudaDeviceSynchronize();
-	cudaMemcpy(arrayOfFishes, d_fishes, LEN * LEN * 5 * sizeof(float), cudaMemcpyDeviceToHost);
-	cudaFree(d_fishes);
+	float minimum = INFINITY;
+	for (int i = 0; i < arr.size(); i++) {
+		minimum = minimum < arr[i] ? minimum : arr[i];
+	}
+	return minimum;
 }
-
-void renderCpu()
-{
-	updateShoal();
+bool sortByMulValue(pair<int, float> first, pair<int, float> second) {
+	return first.second < second.second;
 }
+float getMultiplyValue(vector<float> arr) {
+	if (arr.size() < 4) {
+		return 0;
+	}
+	vector<pair<int, float>> _arr;
+	for (int i = 0; i < 4; i++) {
+		pair<int, float> elem(floor(i / 2), arr[i]);
+		_arr.push_back(elem);
+	}
+	sort(_arr.begin(), _arr.end(), sortByMulValue);
+	if (_arr[0].first != _arr[1].first) {
+		return _arr[1].second;
+	}
+	return 0;
+}
+float getDifferenceValue(vector<float> arr, int id) {
+	if (arr.size() < 2) {
+		return 0;
+	}
+	vector<pair<int, float>> _arr;
+	for (int i = 0; i < arr.size(); i++) {
+		pair<int, float> elem(floor(i / 2), arr[i]);
+		_arr.push_back(elem);
+	}
+	sort(_arr.begin(), _arr.end(), sortByMulValue);
+	if (_arr.size() == 2 && id == 0) {
+		return _arr[0].second;
+	}
+	else if (id == 1 && _arr.size() == 2) {
+		return 0;
+	}
+	if (_arr[0].first == 0) {
+		return _arr[0].second;
+	}
+	return _arr[2].second;
+}
+int getMinimum(Sphere* left, Sphere* right, bool X) {
+	if (left == NULL || right == NULL) {
+		return 0;
+	}
+	return X ? min(left->positionX - left->r, right->positionX - right->r) : min(left->positionY - left->r, right->positionY - right->r);
+}
+int getMaximum(Sphere* left, Sphere* right, bool X) {
+	if (left == NULL || right == NULL) {
+		return 0;
+	}
+	return X ? max(left->positionX + left->r, right->positionX + right->r) : max(left->positionY + left->r, right->positionY + right->r);
+}
+bool isCloseEnough(Sphere* sphere, int i, int j) {
+	return sqrt(pow(sphere->positionX - i, 2) + pow(sphere->positionY - j, 2)) < sphere->r;
+}
+void DrawElement(node* Node, unsigned char *data, vector<zLen*>* zlength) {
+	if (Node->operation == None) return;
+	if (Node->operation != None) {
+		DrawElement(Node->left, data, zlength);
+	}
+	if (Node->operation != None) {
+		DrawElement(Node->right, data, zlength);
+	}
+	Sphere* left = Node->left->sphere;
+	Sphere* right = Node->right->sphere;
 
+
+	int minimumX = getMinimum(left, right, true);
+	int maximumX = getMaximum(left, right, true);
+	int minimumY = getMinimum(left, right, false);
+	int maximumY = getMaximum(left, right, false);
+	for (int i = minimumX; i < maximumX; i++) {
+		for (int j = minimumY; j < maximumY; j++) {
+			vector<float> distances;
+			int _dist = 0;
+			if (left != NULL && isCloseEnough(left, i, j)) {
+				distances.push_back(zetDist(i, j, left->positionX, left->positionY, left->r));
+				distances.push_back(zetDistBack(i, j, left->positionX, left->positionY, left->r));
+			}
+			if (right != NULL && isCloseEnough(right, i, j)) {
+				_dist = 1;
+				distances.push_back(zetDist(i, j, right->positionX, right->positionY, right->r));
+				distances.push_back(zetDistBack(i, j, right->positionX, right->positionY, right->r));
+			}
+			if (Node->operation == Sum) {
+				setInd(data, i, j, getMinimumOfArray(distances));
+			}
+			else if (Node->operation == Mul) {
+				setInd(data, i, j, getMultiplyValue(distances));
+			}
+			else { // Diff
+				setInd(data, i, j, getDifferenceValue(distances, _dist));
+			}
+		}
+	}
+	glDrawPixels(LEN, LEN, GL_RGBA, GL_UNSIGNED_BYTE, data);
+}
+void CreateRoot() {
+	root = new node();
+	root->operation = Sum;
+
+	Sphere* sphere1 = new Sphere();
+	sphere1->r = 200;
+	sphere1->positionX = 100;
+	sphere1->positionY = 100;
+
+	Sphere* sphere3 = new Sphere();
+	sphere3->r = 100;
+	sphere3->positionX = -50;
+	sphere3->positionY = -50;
+
+	Sphere* sphere2 = new Sphere();
+	sphere2->r = 100;
+	sphere2->positionX = -120;
+	sphere2->positionY = -120;
+
+	Sphere* sphere4 = new Sphere();
+	sphere4->r = 50;
+	sphere4->positionX = 50;
+	sphere4->positionY = -50;
+
+	node* left1 = new node();
+	left1->operation = Diff;
+	left1->parent = root;
+
+	node* right2 = new node();
+	right2->operation = None;
+	right2->sphere = sphere2;
+	right2->parent = left1;
+
+	node* left2 = new node();
+	left2->operation = Sum;
+	left2->parent = left1;
+
+	left1->right = right2;
+	left1->left = left2;
+
+	node* right3 = new node();
+	right3->operation = None;
+	right3->sphere = sphere4;
+	right3->parent = left2;
+
+	node* left3 = new node();
+	left3->operation = None;
+	left3->sphere = sphere3;
+	left3->parent = left2;
+
+	left2->left = left3;
+	left2->right = right3;
+
+	node* right = new node();
+	right->sphere = sphere1;
+	right->operation = None;
+	right->parent = root;
+	root->right = right;
+	root->left = left1;
+}
 void render()
-{	//while(true) {
-	glClearColor(64.0 / 255.0, 164.0 / 255.0, 223.0 / 225.0, 1.0);
+{
+	glClearColor(0.0 / 255.0, 0.0 / 255.0, 0.0 / 225.0, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	//const clock_t begin_time = clock();
-	//while (clock() - begin_time < 10);
-	
+
+	DrawElement(root, prepareData(), prepareZetsArray());
+
+
 	renderGpu();
-	//renderCpu();
 	renderShoal();
 	glutSwapBuffers();
-	glutPostRedisplay();
-	//}
+	//glutPostRedisplay();
 }
-
-
-
 int main(int argc, char* argv[])
 {
 	// Initialize GLUTx
 	glutInit(&argc, argv);
 	// Set up some memory buffers for our display
-	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
+	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
 	// Set the window size
-	glutInitWindowSize(1000, 800);
+	glutInitWindowSize(LEN, LEN);
 	// Create the window with the title "Hello,GL"
-	glutCreateWindow("Shoal");
-	defineFishes();
-	// Bind the two functions (above) to respond when necessary
-	glutReshapeFunc(changeViewPort);
+	glutCreateWindow("CSGThree");
+	CreateRoot();
 	glutDisplayFunc(render);
 	glutMainLoop();
-	//glutMainLoop();
 
-	// Very important!  This initializes the entry points in the OpenGL driver so we can 
-	// call all the functions in the API.
 	GLenum err = glewInit();
 	if (GLEW_OK != err) {
 		fprintf(stderr, "GLEW error");
