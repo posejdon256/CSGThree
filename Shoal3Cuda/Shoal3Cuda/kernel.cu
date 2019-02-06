@@ -1,4 +1,5 @@
 
+#pragma region Includes
 
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
@@ -25,17 +26,27 @@
 #include <Windows.h>
 #include<device_launch_parameters.h>
 #include <algorithm>
-
+#pragma endregion
 using namespace std;
-
 #define LEN 1000
 
-
+#pragma region Structures
+struct Position {
+	float x;
+	float y;
+	float z;
+};
+struct Color {
+	int r;
+	int g;
+	int b;
+	int a;
+};
 struct Sphere
 {
 	int r;
-	int positionX;
-	int positionY;
+	Position position;
+	Color color;
 };
 enum Operation
 {
@@ -44,19 +55,25 @@ enum Operation
 	Diff = 2,
 	None = 3
 };
-struct node {
+struct Line {
+	Sphere* in;
+	Position* inPosition;
+	Sphere* out;
+	Position* outPosition;
+
+};
+struct Node {
 	Operation operation;
 	Sphere* sphere;
-	node* left = NULL;
-	node* right = NULL;
-	node* parent = NULL;
+	Node* left = NULL;
+	Node* right = NULL;
+	Node* parent = NULL;
+	vector<Line*> lines;
 };
-struct zLen {
-	bool isIn;
-	float pos;
-};
-node * root;
+Node * root;
 unsigned char *data;
+#pragma endregion
+#pragma region CUDA
 
 __host__ __device__
 float getAngle(float x1, float y1, float x2, float y2) {
@@ -64,33 +81,29 @@ float getAngle(float x1, float y1, float x2, float y2) {
 	value = value != 0 ? value / sqrt(pow(x1 - x2, 2) + pow(y1 - y2, 2)) : 0;
 	return 180 - atan2(-y1, x1) * 57.0;
 }
-
 __host__ __device__
 float vectorMultiply(float x1, float y1, float x2, float y2) {
 	float value = x1 * x2 + y1 * y2;
 	value = value != 0 ? value / sqrt(pow(x1 - x2, 2) + pow(y1 - y2, 2)) : 0;
 	return value;
 }
-
 __host__ __device__
 float getVectorLength(float x1, float y1, float x2, float y2) {
 	return sqrt(pow(x1 - x2, 2) + pow(y1 - y2, 2));
 }
-
-__global__
-void updateShoalGpu(float *d_arrayOfFishes) {
-	const long numThreads = blockDim.x * gridDim.x;
-	const long threadID = blockIdx.x * blockDim.x + threadIdx.x;
-	int i = threadID;
+#pragma endregion
+#pragma region  Helpers
+Position* crossMultiply(Position* v1, Position* v2) {
+	// [ a2 * b3 - a3 * b2, a3 * b1 - a1 * b3, a1 * b2 - a2 * b1 ]
+	Position* newP = new Position();
+	newP->x = v1->y * v2->z - v1->z * v2->y;
+	newP->y = v1->z * v2->x - v1->x * v2->z;
+	newP->z = v1->x * v2->y - v1->y * v2->x;
+	return newP;
 }
-vector<zLen*>* prepareZetsArray() {
-	vector<zLen*> *zlenth = new vector<zLen*>[LEN * LEN];
-	for (int i = 0; i < LEN * LEN; i++) {
-		zlenth = new vector<zLen*>();
-	}
-	return zlenth;
+float dotMultiply(Position* v1, Position* v2) {
+	return v1->x * v2->x + v1->y * v2->y + v1->z * v2->z;
 }
-bool sortFunction(zLen* i, zLen* j) { return i->pos > j->pos; }
 unsigned char* prepareData() {
 	unsigned char *data = new unsigned char[LEN * LEN * 4];
 	for (int i = 0; i < LEN * LEN * 4; i++) {
@@ -99,38 +112,39 @@ unsigned char* prepareData() {
 
 	return data;
 }
-void changeViewPort(int w, int h)
-{
-	glViewport(0, 0, w, h);
+Position* DiffPoints(Position* p1, Position* p2) {
+	Position* p3 = new Position();
+	p3->x = p1->x - p2->x;
+	p3->y = p1->y - p2->y;
+	p3->z = p1->z - p2->z;
+	return p3;
 }
-
-void renderTriangle() {
-
-	glColor3f(255.0 / 255.0, 204.0 / 255.0, 0.0 / 255.0);
-
-	glVertex3f(-0.75, 0.5, 0.0);
-	glVertex3f(1.0, 0.0, 0.0);
-	glVertex3f(1.0, 1.0, 0.0);
-
+Position* DividePoint(Position* p, float a) {
+	Position* newP = new Position();
+	newP->x = p->x / a;
+	newP->y = p->y / a;
+	newP->z = p->z / a;
+	return newP;
 }
-
-void renderShoal() {
+Position* SumPoints(Position* p1, Position* p2) {
+	Position* newP = new Position();
+	newP->x = p1->x + p2->x;
+	newP->y = p1->y + p2->y;
+	newP->z = p1->z + p2->z;
+	return newP;
 }
-void renderGpu()
-{
+Position* MulPoints(Position* p, float a) {
+	Position* newP = new Position();
+	newP->x = p->x * a;
+	newP->y = p->y * a;
+	newP->z = p->z *a;
+	return newP;
 }
-float getZet(int x, int y, int cenX, int cenY, int r) {
-	return sqrt(pow(r, 2) - pow(x - cenX, 2) - pow(y - cenY, 2));
+float lengthBetweenTwoPoints(Position* p1, Position* p2) {
+	return sqrt(pow(p1->x - p2->x, 2) + pow(p1->x - p2->y, 2) + pow(p1->z - p2->z, 2));
 }
-float zetDist(int x, int y, int cenX, int cenY, int r) {
-	return  max(((200.0f - getZet(x, y, cenX, cenY, r)) / 500.0f) * 255.0f, 0.0f);
-}
-float zetDistBack(int x, int y, int cenX, int cenY, int r) {
-	return  min(((200.0f + getZet(x, y, cenX, cenY, r)) / 500.0f) * 255.0f, 255.0f);
-}
-bool isInCircle(int x, int y, int cenX, int cenY, int r) {
-	float len = sqrt(pow(x - cenX, 2) + pow(y - cenY, 2));
-	return len <= r;
+float vectorLength(Position* p) {
+	return sqrt(pow(p->x, 2) + pow(p->y, 2) + pow(p->z, 2));
 }
 void setInd(unsigned char *data, int i, int j, int value) {
 	data[((i + 500) * LEN + (j + 500)) * 4] = value;
@@ -138,158 +152,135 @@ void setInd(unsigned char *data, int i, int j, int value) {
 	data[((i + 500) * LEN + (j + 500)) * 4 + 2] = value;
 	data[((i + 500) * LEN + (j + 500)) * 4 + 3] = value;
 }
-float getMinimumOfArray(vector<float> arr) {
-	if (arr.size() == 0) {
-		return 0;
-	}
-	float minimum = INFINITY;
-	for (int i = 0; i < arr.size(); i++) {
-		minimum = minimum < arr[i] ? minimum : arr[i];
-	}
-	return minimum;
+#pragma endregion
+#pragma region Logic operations
+vector<Line*> MulOperation(vector<Line*> lines1, vector<Line*> lines2) {
 }
-bool sortByMulValue(pair<int, float> first, pair<int, float> second) {
-	return first.second < second.second;
-}
-float getMultiplyValue(vector<float> arr) {
-	if (arr.size() < 4) {
-		return 0;
-	}
-	vector<pair<int, float>> _arr;
-	for (int i = 0; i < 4; i++) {
-		pair<int, float> elem(floor(i / 2), arr[i]);
-		_arr.push_back(elem);
-	}
-	sort(_arr.begin(), _arr.end(), sortByMulValue);
-	if (_arr[0].first != _arr[1].first) {
-		return _arr[1].second;
-	}
-	return 0;
-}
-float getDifferenceValue(vector<float> arr, int id) {
-	if (arr.size() < 2) {
-		return 0;
-	}
-	vector<pair<int, float>> _arr;
-	for (int i = 0; i < arr.size(); i++) {
-		pair<int, float> elem(floor(i / 2), arr[i]);
-		_arr.push_back(elem);
-	}
-	sort(_arr.begin(), _arr.end(), sortByMulValue);
-	if (_arr.size() == 2 && id == 0) {
-		return _arr[0].second;
-	}
-	else if (id == 1 && _arr.size() == 2) {
-		return 0;
-	}
-	if (_arr[0].first == 0) {
-		return _arr[0].second;
-	}
-	return _arr[2].second;
-}
-int getMinimum(Sphere* left, Sphere* right, bool X) {
-	if (left == NULL || right == NULL) {
-		return 0;
-	}
-	return X ? min(left->positionX - left->r, right->positionX - right->r) : min(left->positionY - left->r, right->positionY - right->r);
-}
-int getMaximum(Sphere* left, Sphere* right, bool X) {
-	if (left == NULL || right == NULL) {
-		return 0;
-	}
-	return X ? max(left->positionX + left->r, right->positionX + right->r) : max(left->positionY + left->r, right->positionY + right->r);
-}
-bool isCloseEnough(Sphere* sphere, int i, int j) {
-	return sqrt(pow(sphere->positionX - i, 2) + pow(sphere->positionY - j, 2)) < sphere->r;
-}
-void DrawElement(node* Node, unsigned char *data, vector<zLen*>* zlength) {
-	if (Node->operation == None) return;
-	if (Node->operation != None) {
-		DrawElement(Node->left, data, zlength);
-	}
-	if (Node->operation != None) {
-		DrawElement(Node->right, data, zlength);
-	}
-	Sphere* left = Node->left->sphere;
-	Sphere* right = Node->right->sphere;
+vector<Line*> SumOperation(vector<Line*> lines1, vector<Line*> lines2) {
+	vector<Line*> ret;
+	Line* last = lines1[lines1.size() - 1] < lines2[lines2.size() - 1] ? lines2[lines2.size() - 1] : lines1[lines1.size() - 1];
+	while (ret.size() == 0 || ret[ret.size() - 1] != last) {
 
+	}
+}
+vector<Line*> DiffOperation(vector<Line*> lines, vector<Line*> line3) {
 
-	int minimumX = getMinimum(left, right, true);
-	int maximumX = getMaximum(left, right, true);
-	int minimumY = getMinimum(left, right, false);
-	int maximumY = getMaximum(left, right, false);
-	for (int i = minimumX; i < maximumX; i++) {
-		for (int j = minimumY; j < maximumY; j++) {
-			vector<float> distances;
-			int _dist = 0;
-			if (left != NULL && isCloseEnough(left, i, j)) {
-				distances.push_back(zetDist(i, j, left->positionX, left->positionY, left->r));
-				distances.push_back(zetDistBack(i, j, left->positionX, left->positionY, left->r));
+}
+#pragma endregion
+#pragma region Engine
+Line* countLine(Sphere* sphere, Position* camera) {
+	Position* l = DiffPoints(&sphere->position, camera);
+	Line* ret = new Line();
+	l = DividePoint(l, vectorLength(l));
+	Position* cameraToCenter = DiffPoints(camera, &sphere->position);
+	float a = dotMultiply(l, l);
+	float b = 2 * dotMultiply(l, cameraToCenter);
+	float c = dotMultiply(cameraToCenter, cameraToCenter) - pow(sphere->r, 2);
+	if (pow(b, 2) < 4 * a * c) {
+		return NULL;
+	}
+	float d1 = (-b + sqrt(pow(b, 2) - 4 * a * c)) / (2 * a);
+	float d2 = (-b - sqrt(pow(b, 2) - 4 * a * c)) / (2 * a);
+	ret->in = sphere;
+	ret->out = sphere;
+	ret->inPosition = d1 < d2 ? SumPoints(MulPoints(l, d1), camera) : SumPoints(MulPoints(l, d2), camera);
+	ret->outPosition = d1 < d2 ? SumPoints(MulPoints(l, d2), camera) : SumPoints(MulPoints(l, d1), camera);
+	return ret;
+}
+void DrawElement(Node* node, unsigned char *data, Position* camera) {
+	if (node->left != NULL) {
+		DrawElement(node->left, data, camera);
+	}
+	if (node->right != NULL) {
+		DrawElement(node->right, data, camera);
+	}
+	for (int i = 0; i < LEN; i++) {
+		for (int j = 0; j < LEN; j++) {
+			Position* place = new Position();
+			if (node->sphere != NULL) {
+				Line* sphereLine = countLine(node->sphere, camera);
+				if (sphereLine != NULL) {
+					node->lines.push_back(sphereLine);
+				}
+				else {
+					node->left->lines.insert(node->left->lines.end(), node->right->lines.begin(), node->right->lines.end());
+					node->lines = node->left->lines;
+				}
 			}
-			if (right != NULL && isCloseEnough(right, i, j)) {
-				_dist = 1;
-				distances.push_back(zetDist(i, j, right->positionX, right->positionY, right->r));
-				distances.push_back(zetDistBack(i, j, right->positionX, right->positionY, right->r));
-			}
-			if (Node->operation == Sum) {
-				setInd(data, i, j, getMinimumOfArray(distances));
-			}
-			else if (Node->operation == Mul) {
-				setInd(data, i, j, getMultiplyValue(distances));
-			}
-			else { // Diff
-				setInd(data, i, j, getDifferenceValue(distances, _dist));
+		}
+	}
+	if (node->parent == NULL) {
+		for (int i = 0; i < LEN; i++) {
+			for (int j = 0; j < LEN; j++) {
+				setInd(data, i, j no)
 			}
 		}
 	}
 	glDrawPixels(LEN, LEN, GL_RGBA, GL_UNSIGNED_BYTE, data);
 }
+#pragma endregion
+#pragma region THREE
+
+
+Sphere* setSpherePosition(Sphere* sphere, int x, int y, int z) {
+	sphere->position.x = x;
+	sphere->position.y = y;
+	sphere->position.z = z;
+	return sphere;
+}
+Sphere* setSphereColor(Sphere* sphere, int r, int g, int b, int a) {
+	sphere->color.r = r;
+	sphere->color.g = g;
+	sphere->color.b = b;
+	sphere->color.a = a;
+	return sphere;
+}
 void CreateRoot() {
-	root = new node();
+	root = new Node();
 	root->operation = Sum;
 
 	Sphere* sphere1 = new Sphere();
 	sphere1->r = 200;
-	sphere1->positionX = 100;
-	sphere1->positionY = 100;
+	sphere1 = setSpherePosition(sphere1, 100, 100, 0);
+	sphere1 = setSphereColor(sphere1, 255, 0, 255, 255);
 
 	Sphere* sphere3 = new Sphere();
 	sphere3->r = 100;
-	sphere3->positionX = -50;
-	sphere3->positionY = -50;
+	sphere3 = setSpherePosition(sphere3, -50, -50, 0);
+	sphere3 = setSphereColor(sphere3, 0, 255, 0, 255);
 
 	Sphere* sphere2 = new Sphere();
 	sphere2->r = 100;
-	sphere2->positionX = -120;
-	sphere2->positionY = -120;
+	sphere2 = setSpherePosition(sphere2, -120, -120, 0);
+	sphere2 = setSphereColor(sphere2, 0, 0, 255, 255);
 
 	Sphere* sphere4 = new Sphere();
 	sphere4->r = 50;
-	sphere4->positionX = 50;
-	sphere4->positionY = -50;
+	sphere4 = setSpherePosition(sphere4, 50, -50, 0);
+	sphere4 = setSphereColor(sphere4, 100, 100, 100, 255);
 
-	node* left1 = new node();
+	Node* left1 = new Node();
 	left1->operation = Diff;
 	left1->parent = root;
 
-	node* right2 = new node();
+	Node* right2 = new Node();
 	right2->operation = None;
 	right2->sphere = sphere2;
 	right2->parent = left1;
 
-	node* left2 = new node();
+	Node* left2 = new Node();
 	left2->operation = Sum;
 	left2->parent = left1;
 
 	left1->right = right2;
 	left1->left = left2;
 
-	node* right3 = new node();
+	Node* right3 = new Node();
 	right3->operation = None;
 	right3->sphere = sphere4;
 	right3->parent = left2;
 
-	node* left3 = new node();
+	Node* left3 = new Node();
 	left3->operation = None;
 	left3->sphere = sphere3;
 	left3->parent = left2;
@@ -297,26 +288,38 @@ void CreateRoot() {
 	left2->left = left3;
 	left2->right = right3;
 
-	node* right = new node();
+	Node* right = new Node();
 	right->sphere = sphere1;
 	right->operation = None;
 	right->parent = root;
 	root->right = right;
 	root->left = left1;
 }
+#pragma endregion
+#pragma region Render
+void renderCpu() {
+}
+void renderGpu()
+{
+}
 void render()
 {
+	Position* camera = new Position();
+	camera->x = 0;
+	camera->y = 0;
+	camera->z = 200;
 	glClearColor(0.0 / 255.0, 0.0 / 255.0, 0.0 / 225.0, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	DrawElement(root, prepareData(), prepareZetsArray());
+	DrawElement(root, prepareData(), camera);
 
 
 	renderGpu();
-	renderShoal();
+	renderCpu();
 	glutSwapBuffers();
 	//glutPostRedisplay();
 }
+#pragma endregion
 int main(int argc, char* argv[])
 {
 	// Initialize GLUTx
