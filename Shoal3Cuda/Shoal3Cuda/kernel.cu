@@ -4,6 +4,9 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include "device_functions.h"
+#include <thrust/host_vector.h>
+#include <thrust/device_vector.h>
+#include <thrust/copy.h>
 
 #include <string>
 #include <cstdio>
@@ -28,7 +31,9 @@
 #include <algorithm>
 #pragma endregion
 using namespace std;
+using namespace thrust;
 #define LEN 1000
+
 
 #pragma region Structures
 struct Position {
@@ -57,9 +62,9 @@ enum Operation
 };
 struct Line {
 	Sphere* in;
-	Position* inPosition;
+	float inPosition;
 	Sphere* out;
-	Position* outPosition;
+	float outPosition;
 
 };
 struct Node {
@@ -68,9 +73,8 @@ struct Node {
 	Node* left = NULL;
 	Node* right = NULL;
 	Node* parent = NULL;
-	vector<Line*> lines;
+	thrust::device_vector<Line*> lines[LEN * LEN];
 };
-Node * root;
 unsigned char *data;
 #pragma endregion
 #pragma region CUDA
@@ -146,15 +150,18 @@ float lengthBetweenTwoPoints(Position* p1, Position* p2) {
 float vectorLength(Position* p) {
 	return sqrt(pow(p->x, 2) + pow(p->y, 2) + pow(p->z, 2));
 }
-void setInd(unsigned char *data, int i, int j, int value) {
-	data[((i + 500) * LEN + (j + 500)) * 4] = value;
-	data[((i + 500) * LEN + (j + 500)) * 4 + 1] = value;
-	data[((i + 500) * LEN + (j + 500)) * 4 + 2] = value;
-	data[((i + 500) * LEN + (j + 500)) * 4 + 3] = value;
+__host__ __device__
+void setInd(unsigned char *data, int i, int value) {
+	data[i * 4] = value;
+	data[i * 4 + 1] = value;
+	data[i * 4 + 2] = value;
+	data[i * 4 + 3] = 255;
 }
 #pragma endregion
 #pragma region Logic operations
 vector<Line*> MulOperation(vector<Line*> lines1, vector<Line*> lines2) {
+	vector<Line*> ret;
+	return ret;
 }
 vector<Line*> SumOperation(vector<Line*> lines1, vector<Line*> lines2) {
 	vector<Line*> ret;
@@ -162,72 +169,108 @@ vector<Line*> SumOperation(vector<Line*> lines1, vector<Line*> lines2) {
 	while (ret.size() == 0 || ret[ret.size() - 1] != last) {
 
 	}
+	return ret;
 }
 vector<Line*> DiffOperation(vector<Line*> lines, vector<Line*> line3) {
-
+	vector<Line*> ret;
+	return ret;
 }
 #pragma endregion
 #pragma region Engine
-Line* countLine(Sphere* sphere, Position* camera) {
-	Position* l = DiffPoints(&sphere->position, camera);
+__host__ __device__
+Line* countLine(Sphere* sphere, Position* camera, Position* place) {
+	Position* v = DiffPoints(place, camera);
+	Position* dv = DiffPoints(camera, &sphere->position);
+	float a = dotMultiply(v, v);
+	float b = 2 * dotMultiply(v, dv);
+	float c = dotMultiply(dv, dv) - pow(sphere->r, 2);
+
 	Line* ret = new Line();
-	l = DividePoint(l, vectorLength(l));
-	Position* cameraToCenter = DiffPoints(camera, &sphere->position);
-	float a = dotMultiply(l, l);
-	float b = 2 * dotMultiply(l, cameraToCenter);
-	float c = dotMultiply(cameraToCenter, cameraToCenter) - pow(sphere->r, 2);
-	if (pow(b, 2) < 4 * a * c) {
-		return NULL;
-	}
-	float d1 = (-b + sqrt(pow(b, 2) - 4 * a * c)) / (2 * a);
-	float d2 = (-b - sqrt(pow(b, 2) - 4 * a * c)) / (2 * a);
 	ret->in = sphere;
 	ret->out = sphere;
-	ret->inPosition = d1 < d2 ? SumPoints(MulPoints(l, d1), camera) : SumPoints(MulPoints(l, d2), camera);
-	ret->outPosition = d1 < d2 ? SumPoints(MulPoints(l, d2), camera) : SumPoints(MulPoints(l, d1), camera);
+	//Range result = { false, 0,0, sphere_id };
+
+	float delta = b * b - 4 * a*c;
+
+	if (delta < 0)
+		return NULL;
+	else
+	{
+		if (delta == 0)
+		{
+			float t = -b / (2 * a);
+			ret->inPosition = t;
+			ret->outPosition = t;
+		}
+		else
+		{
+			float sdelta = sqrt(delta);
+			float t1 = (-b + sdelta) / (2 * a);
+			float t2 = (-b - sdelta) / (2 * a);
+			if (t1 < t2)
+			{
+				ret->inPosition = t1;
+				ret->outPosition = t2;
+			}
+			else
+			{
+				ret->inPosition = t2;
+				ret->outPosition = t1;
+			}
+		}
+	}
+	ret->inPosition = ret->inPosition < 0 ? ret->inPosition * -100 : ret->inPosition * 100;
+	ret->outPosition = ret->outPosition < 0 ? ret->outPosition * -100 : ret->outPosition * 100;
 	return ret;
+
 }
-void DrawElement(Node* node, unsigned char *data, Position* camera) {
+__host__ __device__
+void concatTwoNodes(Node* ret) {
+	Node* left = ret->left;
+	Node* right = ret->right;
+
+	for (int i = 0; i < LEN * LEN; i++) {
+		ret->lines[i].insert(ret->lines[i].end(), right->lines[i].begin(), right->lines[i].end());
+		ret->lines[i].insert(ret->lines[i].end(), left->lines[i].begin(), left->lines[i].end());
+	}
+}
+__device__
+void DrawElement(Node* node, Position* camera, unsigned char *data, int i) {
 	if (node->left != NULL) {
-		DrawElement(node->left, data, camera);
+		DrawElement(node->left, camera, data, i);
 	}
 	if (node->right != NULL) {
-		DrawElement(node->right, data, camera);
+		DrawElement(node->right, camera, data, i);
 	}
-	for (int i = 0; i < LEN; i++) {
-		for (int j = 0; j < LEN; j++) {
-			Position* place = new Position();
-			if (node->sphere != NULL) {
-				Line* sphereLine = countLine(node->sphere, camera);
-				if (sphereLine != NULL) {
-					node->lines.push_back(sphereLine);
-				}
-				else {
-					node->left->lines.insert(node->left->lines.end(), node->right->lines.begin(), node->right->lines.end());
-					node->lines = node->left->lines;
-				}
-			}
+	if (node->sphere == NULL) {
+		concatTwoNodes(node);
+	} else {
+		Position* place = new Position();
+		place->x = i % LEN;
+		place->y = i;
+		while (place->y >= LEN) place->y -= LEN;
+		place->z = 0;
+		Line* sphereLine = countLine(node->sphere, camera, place);
+		if (sphereLine != NULL) {
+			node->lines[i].push_back(sphereLine);
 		}
 	}
 	if (node->parent == NULL) {
-		for (int i = 0; i < LEN; i++) {
-			for (int j = 0; j < LEN; j++) {
-				setInd(data, i, j no)
-			}
-		}
+		setInd(data, i, node->lines[i].size() > 0 ? 1 : 0);
+		//glDrawPixels(LEN, LEN, GL_RGBA, GL_UNSIGNED_BYTE, data);
 	}
-	glDrawPixels(LEN, LEN, GL_RGBA, GL_UNSIGNED_BYTE, data);
 }
 #pragma endregion
 #pragma region THREE
 
-
+__device__
 Sphere* setSpherePosition(Sphere* sphere, int x, int y, int z) {
 	sphere->position.x = x;
 	sphere->position.y = y;
 	sphere->position.z = z;
 	return sphere;
 }
+__device__
 Sphere* setSphereColor(Sphere* sphere, int r, int g, int b, int a) {
 	sphere->color.r = r;
 	sphere->color.g = g;
@@ -235,28 +278,30 @@ Sphere* setSphereColor(Sphere* sphere, int r, int g, int b, int a) {
 	sphere->color.a = a;
 	return sphere;
 }
-void CreateRoot() {
-	root = new Node();
+__device__
+Node* CreateRoot() {
+	Node* root = new Node();
+	root->parent = NULL;
 	root->operation = Sum;
 
 	Sphere* sphere1 = new Sphere();
-	sphere1->r = 200;
+	sphere1->r = 50;
 	sphere1 = setSpherePosition(sphere1, 100, 100, 0);
 	sphere1 = setSphereColor(sphere1, 255, 0, 255, 255);
 
 	Sphere* sphere3 = new Sphere();
-	sphere3->r = 100;
-	sphere3 = setSpherePosition(sphere3, -50, -50, 0);
+	sphere3->r = 70;
+	sphere3 = setSpherePosition(sphere3, 150, 150, 0);
 	sphere3 = setSphereColor(sphere3, 0, 255, 0, 255);
 
 	Sphere* sphere2 = new Sphere();
 	sphere2->r = 100;
-	sphere2 = setSpherePosition(sphere2, -120, -120, 0);
+	sphere2 = setSpherePosition(sphere2, 170, 140, 0);
 	sphere2 = setSphereColor(sphere2, 0, 0, 255, 255);
 
 	Sphere* sphere4 = new Sphere();
-	sphere4->r = 50;
-	sphere4 = setSpherePosition(sphere4, 50, -50, 0);
+	sphere4->r = 120;
+	sphere4 = setSpherePosition(sphere4, 200, 200, -50);
 	sphere4 = setSphereColor(sphere4, 100, 100, 100, 255);
 
 	Node* left1 = new Node();
@@ -292,30 +337,62 @@ void CreateRoot() {
 	right->sphere = sphere1;
 	right->operation = None;
 	right->parent = root;
+
 	root->right = right;
 	root->left = left1;
+	return root;
 }
 #pragma endregion
 #pragma region Render
 void renderCpu() {
 }
+void initializeGPU() {
+	//cudaError_t error = cudaSuccess;
+	////size_t spheresSize = 4 * sizeof(Sphere);
+	//size_t nodeSize = 8 * sizeof(Node);
+	//size_t dataSize = 4 * LEN * LEN * sizeof(char);
+
+	//error = cudaMalloc((void**)&)
+}
+__global__
+void DrawElements(Position* camera, unsigned char *data) {
+
+	const long numThreads = blockDim.x * gridDim.x;
+	const long threadID = blockIdx.x * blockDim.x + threadIdx.x;
+
+	Node* root = CreateRoot();
+
+	int i = threadID;
+	if (threadID < LEN * LEN) {
+		DrawElement(root, camera, data, i);
+	}
+
+}
 void renderGpu()
 {
-}
-void render()
-{
+	cudaError_t error = cudaSuccess;
+	int pictureSize = LEN * LEN;
+	size_t dataSize = 4 * pictureSize * sizeof(char);
+	int threadsPerBlock = 256;
+
 	Position* camera = new Position();
 	camera->x = 0;
 	camera->y = 0;
-	camera->z = 200;
+	camera->z = 1000;
+
+	DrawElements << < 1024, 1024 >> > (camera, prepareData());
+	
+}
+void render()
+{
 	glClearColor(0.0 / 255.0, 0.0 / 255.0, 0.0 / 225.0, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	DrawElement(root, prepareData(), camera);
+	//DrawElement(root, prepareData(), camera);
 
 
 	renderGpu();
-	renderCpu();
+	//renderCpu();
 	glutSwapBuffers();
 	//glutPostRedisplay();
 }
@@ -330,7 +407,6 @@ int main(int argc, char* argv[])
 	glutInitWindowSize(LEN, LEN);
 	// Create the window with the title "Hello,GL"
 	glutCreateWindow("CSGThree");
-	CreateRoot();
 	glutDisplayFunc(render);
 	glutMainLoop();
 
